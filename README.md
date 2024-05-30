@@ -8,7 +8,7 @@ Automatic hex data modification of Uber and Samp audio files within the 2007 Wii
 + browse for the export folder and select it, then press the “Export Now!” button.
 + This will export all dsp’s within the Extract folder. Use the provided Audacity with special plugins to edit the audio files.
 + When you are done make sure the sound is Mono, not Stereo. For best quality keep it the same length. When saving make sure it is a .dsp file, read the note below.
-#Note
+# Note
 + DO NOT SAVE OVER THE ORIGINAL DSP, PUT THEM IN THE PROVIDED OR YOUR OWN REIMPORT FOLDER!!!
 # Reimporting
 + When completing the audio editing, and ensuring the edited dsp file names match their corresponding replacements, browse and add the re import folder and the export if you have not already
