@@ -2,6 +2,9 @@
 Developer: Digitzaki
 Automatic hex data modification of Uber and Samp audio files within the 2007 Wii Game "Godzilla Unleashed" Made to make modding less tedious!
 
+Download the .exe here! 
+- https://github.com/Digitzaki/Unleashed-Sound-Manager/releases/tag/Version_1.1
+
 # How to use (Extraction):
 + Get the audio files from dumping the iso, you can right click dolphin → properties → files and right click export the audio folder. For Revolution or any Riivolution mod in the future, it should be in load. In Revolution’s case look in the load/gunleashed folder.
 + Uber and Samp files MUST GO in the Extract folder.
