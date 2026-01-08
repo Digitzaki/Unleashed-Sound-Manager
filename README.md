@@ -1,4 +1,4 @@
-# DSP Audio Manager
+# Unleashed Audio Manager
 
 A tool for extracting and managing Nintendo DSP audio files from UBER container files (commonly found in GameCube/Wii games).
 
