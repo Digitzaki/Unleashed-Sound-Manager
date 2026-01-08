@@ -4,7 +4,7 @@ A tool for extracting and managing Nintendo DSP audio files from UBER container 
 
 ### Working with UBER and SAMP Files
 
-**UBER files** are container files that hold multiple DSP audio samples. Think of them like a ZIP file full of audio.
+**.UBER & .SAMP** are files that hold multiple DSP audio samples. Think of them like a ZIP file full of audio.
 
 1. Browse or Drag and Drop the .samp and .uber files to the top 2 boxes.
 2. The program will scan the file and list all the sounds it finds
