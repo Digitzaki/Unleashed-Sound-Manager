@@ -14,7 +14,7 @@ from file_operations import (
 class AudioExtractor:
     def __init__(self, root):
         self.root = root
-        self.root.title("Unleashed Sound Manager - Audio Extractor/Rebuilder")
+        self.root.title("Audio Extractor")
         self.root.geometry("900x700")
 
         self.uber_file = None
@@ -76,9 +76,13 @@ class AudioExtractor:
         button_frame = tk.Frame(frame)
         button_frame.pack(pady=15)
 
-        self.extract_btn = tk.Button(button_frame, text="Extract", command=self.extract,
-                                      width=15, height=2, bg="#28a745", fg="white")
-        self.extract_btn.pack(side=tk.LEFT, padx=10)
+        self.extract_wav_btn = tk.Button(button_frame, text="Extract (WAV)", command=self.extract,
+                                          width=15, height=2, bg="#28a745", fg="white")
+        self.extract_wav_btn.pack(side=tk.LEFT, padx=10)
+
+        self.extract_dsp_btn = tk.Button(button_frame, text="Extract (DSP)", command=self.extract_dsp,
+                                          width=15, height=2, bg="#17a2b8", fg="white")
+        self.extract_dsp_btn.pack(side=tk.LEFT, padx=10)
 
         self.rebuild_btn = tk.Button(button_frame, text="Rebuild", command=self.rebuild,
                                       width=15, height=2, bg="#6c757d", fg="white")
@@ -267,7 +271,7 @@ class AudioExtractor:
                 self.sdir_temp_path = None
 
             self.status_text.insert(tk.END, f"\nLoaded {len(self.loaded_sounds)} sound(s).\n")
-            self.status_text.insert(tk.END, "Select sounds and click Extract to create WAV files.")
+            self.status_text.insert(tk.END, "Select sounds and click Extract (WAV) or Extract (DSP).")
 
         except Exception as e:
             self.status_text.insert(tk.END, f"\nERROR during auto-load: {str(e)}")
@@ -301,10 +305,6 @@ class AudioExtractor:
                                    command=lambda s=sound_info: self.preview_loaded_sound(s))
             preview_btn.pack(side=tk.LEFT, padx=5)
 
-            save_dsp_btn = tk.Button(sound_frame, text="Save DSP",
-                                    command=lambda s=sound_info: self.save_loaded_dsp(s))
-            save_dsp_btn.pack(side=tk.LEFT)
-
     def preview_loaded_sound(self, sound_info):
         import tempfile
         temp_wav = tempfile.NamedTemporaryFile(delete=False, suffix='.wav')
@@ -312,23 +312,6 @@ class AudioExtractor:
 
         write_wav(temp_wav.name, sound_info['pcm_samples'], sound_info['sample_rate'])
         self.preview_sound(temp_wav.name)
-
-    def save_loaded_dsp(self, sound_info):
-        base_filename = os.path.splitext(os.path.basename(self.uber_file))[0] if self.uber_file else "sound"
-        file_path = filedialog.asksaveasfilename(
-            title="Save DSP File",
-            defaultextension=".dsp",
-            filetypes=[("DSP Files", "*.dsp"), ("All Files", "*.*")],
-            initialfile=f"{base_filename}_{sound_info['index']:02d}.dsp"
-        )
-
-        if file_path:
-            try:
-                with open(file_path, 'wb') as dsp:
-                    dsp.write(sound_info['dsp_data'])
-                messagebox.showinfo("Success", f"Saved {os.path.basename(file_path)}")
-            except Exception as e:
-                messagebox.showerror("Error", f"Could not save DSP file: {str(e)}")
 
     def preview_sound(self, wav_path):
         if not os.path.exists(wav_path):
@@ -395,6 +378,54 @@ class AudioExtractor:
             self.root.update()
 
             self.status_text.insert(tk.END, f"\n{'='*54}\nExtraction complete! Created {len(selected_indices)} WAV file(s).")
+            self.root.update()
+
+            self.progress_bar['value'] = 0
+            self.progress_label['text'] = ""
+
+        except Exception as e:
+            self.status_text.insert(tk.END, f"\n\nERROR: {str(e)}")
+            self.progress_bar['value'] = 0
+            self.progress_label['text'] = ""
+            messagebox.showerror("Extraction Error", str(e))
+
+    def extract_dsp(self):
+        if not self.loaded_sounds:
+            messagebox.showwarning("No Sounds Loaded", "Please load UBER and SAMP files first")
+            return
+
+        selected_indices = [i for i, var in enumerate(self.sound_checkboxes) if var.get()]
+
+        if not selected_indices:
+            messagebox.showwarning("No Sounds Selected", "Please select at least one sound to extract")
+            return
+
+        self.status_text.insert(tk.END, f"\nExtracting {len(selected_indices)} selected sound(s) as DSP...\n")
+        self.progress_bar['value'] = 0
+        self.progress_bar['maximum'] = len(selected_indices)
+        self.root.update()
+
+        try:
+            base_name = os.path.splitext(self.uber_file)[0]
+
+            for progress_idx, idx in enumerate(selected_indices):
+                sound_info = self.loaded_sounds[idx]
+                dsp_path = f"{base_name}_{sound_info['index']:02d}.dsp"
+
+                with open(dsp_path, 'wb') as dsp:
+                    dsp.write(sound_info['dsp_data'])
+
+                self.status_text.insert(tk.END, f"\nExtracted Sound {sound_info['index']:02d}: {os.path.basename(dsp_path)}")
+                self.status_text.insert(tk.END, f"\n  Sample Rate: {sound_info['sample_rate']} Hz")
+                self.status_text.insert(tk.END, f"\n  Duration: {sound_info['duration']:.2f}s\n")
+
+                self.progress_bar['value'] = progress_idx + 1
+                self.progress_label['text'] = f"Extracted {progress_idx + 1}/{len(selected_indices)}"
+                self.root.update()
+
+            self.root.update()
+
+            self.status_text.insert(tk.END, f"\n{'='*54}\nExtraction complete! Created {len(selected_indices)} DSP file(s).")
             self.root.update()
 
             self.progress_bar['value'] = 0
