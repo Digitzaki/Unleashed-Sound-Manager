@@ -54,17 +54,6 @@ Gigan_04.wav
 ...
 ```
 
-### Working with Individual DSP Files
-
-Already have a `.dsp` file? Load it directly:
-
-1. Click **"Load DSP File"**
-2. Select your `.dsp` file
-3. The file appears in the list as "Sound #00"
-4. Preview or export to WAV as needed
-
-This is useful for converting individual DSP files you've extracted elsewhere.
-
 ### Rebuilding Game Audio
 
 Want to put your edited audio back into the game? The Rebuild function takes your modified files and repackages them:
