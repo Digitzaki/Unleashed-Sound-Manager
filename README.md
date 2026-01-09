@@ -1,10 +1,10 @@
-# Unleashed Audio Manager
+# DSP Audio Manager
 
 A tool for extracting and managing Nintendo DSP audio files from UBER container files (commonly found in GameCube/Wii games).
 
 ### Working with UBER and SAMP Files
 
-**.UBER & .SAMP** are files that hold multiple DSP audio samples. Think of them like a ZIP file full of audio.
+**UBER files** are container files that hold multiple DSP audio samples. Think of them like a ZIP file full of audio.
 
 1. Browse or Drag and Drop the .samp and .uber files to the top 2 boxes.
 2. The program will scan the file and list all the sounds it finds
@@ -26,44 +26,37 @@ Once loaded, you'll see a scrollable list of all sounds in the container:
 
 **Tip:** Preview is great for finding specific sound effects without having to export everything.
 
-### Exporting Individual Files
+### Extracting Audio Files
 
-#### Export as DSP (Original Format)
-1. Select a sound from the list
-2. Click **"Save DSP"**, It will appear in the location of the .samp and .uber files.
-3. The filename will automatically follow the pattern `filename_##.dsp` (e.g., `Gigan_05.dsp`)
+You have two extraction options:
 
-#### Export as WAV (Universal Format)
+#### Extract (WAV) - Universal Format
 1. Select sounds from the `Loaded Sounds` list
-2. Click **EXPORT**, It will appear in the location of the .samp and .uber files.
-3. The DSP is decoded and saved as a standard WAV file you can use anywhere
+2. Click **"Extract (WAV)"**
+3. Files appear in the location of the .samp and .uber files
+4. The DSP is decoded and saved as a standard WAV file you can use anywhere
 
-### Batch Export
+#### Extract (DSP) - Original Format
+1. Select sounds from the `Loaded Sounds` list
+2. Click **"Extract (DSP)"**
+3. Files appear in the location of the .samp and .uber files
+4. The filename will automatically follow the pattern `filename_##.dsp` (e.g., `Gigan_05.dsp`)
+
+### Batch Extract
 
 Want everything at once?
 
-1. Leave everything checked.
-2. Click **"Export"**, It will appear in the location of the .samp and .uber files.
+1. Leave everything checked
+2. Click **"Extract (WAV)"** or **"Extract (DSP)"**
 
-**Example:** If you export all from `Gigan.uber` and `Gigan.samp`, you'll get:
+**Example:** If you extract all from `Gigan.uber` and `Gigan.samp`, you'll get:
 ```
-Gigan_01.wav
+Gigan_01.wav  (or .dsp depending on which Extract button you clicked)
 Gigan_02.wav
 Gigan_03.wav
 Gigan_04.wav
 ...
 ```
-
-### Working with Individual DSP Files
-
-Already have a `.dsp` file? Load it directly:
-
-1. Click **"Load DSP File"**
-2. Select your `.dsp` file
-3. The file appears in the list as "Sound #00"
-4. Preview or export to WAV as needed
-
-This is useful for converting individual DSP files you've extracted elsewhere.
 
 ### Rebuilding Game Audio
 
@@ -87,10 +80,10 @@ Already have edited DSP files from previous tools? No problem! Rebuild also acce
 
 ## Tips
 
-- **Preview before exporting** - Save time by listening first
-- **Export All for archival** - Grab everything at once, .wav makes it easily accessible!
-- **WAV for editing** - Export as WAV to use in audio editing software
-- **Keep DSP for authenticity** - DSP files preserve the original game format, or if you like the old editing method.
+- **Preview before extracting** - Save time by listening first
+- **Extract All for archival** - Grab everything at once, .wav makes it easily accessible!
+- **WAV for editing** - Extract as WAV to use in audio editing software
+- **Keep DSP for authenticity** - Extract as DSP to preserve the original game format, or if you prefer the old editing method
 
 ## Supported Games
 
