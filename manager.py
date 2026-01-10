@@ -14,7 +14,7 @@ from file_operations import (
 class AudioExtractor:
     def __init__(self, root):
         self.root = root
-        self.root.title("Audio Extractor")
+        self.root.title("Unleashed Sound Manager - Extractor & Rebuilder")
         self.root.geometry("900x700")
 
         self.uber_file = None
