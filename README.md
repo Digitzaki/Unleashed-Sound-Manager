@@ -1,12 +1,12 @@
 # DSP Audio Manager
 
-A tool for extracting and managing Nintendo DSP audio files from UBER container files (commonly found in GameCube/Wii games).
+A tool for extracting and managing Nintendo DSP audio files from UBER/SDIR container files (commonly found in GameCube/Wii games).
 
-### Working with UBER and SAMP Files
+### Working with UBER/SDIR and SAMP Files
 
-**UBER files** are container files that hold multiple DSP audio samples. Think of them like a ZIP file full of audio.
+**UBER/SDIR files** are container files that hold multiple DSP audio samples. Think of them like a ZIP file full of audio.
 
-1. Browse or Drag and Drop the .samp and .uber files to the top 2 boxes.
+1. Browse or Drag and Drop the .samp and .uber/.sdir files to the top 2 boxes.
 2. The program will scan the file and list all the sounds it finds
 3. You'll see each sound listed with its index number, sample rate, and length.
 
@@ -65,13 +65,14 @@ Want to put your edited audio back into the game? The Rebuild function takes you
 1. Click **"Rebuild"**
 2. The program automatically finds all WAV files and any DSP files without corresponding WAVs in the directory
 3. WAV files are converted to mono DSP with the correct sample rates and specifications
-4. New `.uber` and `.samp` files are created ready to inject back into your game
+4. New `.uber/.sdir` and `.samp` files are created ready to inject back into your game
 
 **What Rebuild Does:**
 - Converts stereo WAV files to mono (required for GameCube/Wii audio)
 - Re-encodes audio to Nintendo DSP format with proper ADPCM compression
 - Preserves original sample rates and specifications from the source files
-- Generates matching `.uber` and `.samp` files that the game can read
+- Generates matching `.uber/.sdir` and `.samp` files that the game can read
+- For SDIR files: Automatically rezips the `.sdir`, `.pool`, and `.proj` files together for easy injection into DAMM (Godzilla: Destroy all Monsters Melee)
 
 **Old Method Support:**
 Already have edited DSP files from previous tools? No problem! Rebuild also accepts DSP files directly, so you can use your existing workflow if you prefer editing DSPs manually instead of WAVs.
@@ -87,9 +88,10 @@ Already have edited DSP files from previous tools? No problem! Rebuild also acce
 
 ## Supported Games
 
-This tool works with any game that uses UBER containers and Nintendo DSP audio, including:
-- Many GameCube titles
-- Various Wii games
+This tool works with any game that uses UBER/SDIR containers and Nintendo DSP audio, including:
+- Godzilla: Unleashed
+- Godzilla: Destroy all Monsters Melee
+- Any titles using SAMP, UBER, or SDIR files
 - Any game using the WiiMusyx or similar sound engines
 ---
 
