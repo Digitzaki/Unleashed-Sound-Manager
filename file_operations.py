@@ -40,49 +40,116 @@ def extract_sdir_from_uber(uber_path, silent=False):
 def load_sound_data(sdir_path, samp_path):
     sounds = []
 
+    # Standard GameCube DSP ADPCM coefficients
+    standard_coefs = bytes([
+        0x00, 0x00, 0x00, 0x00,
+        0x08, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x04, 0x00,
+        0x04, 0x00, 0x00, 0x00,
+        0x10, 0x00, 0xF8, 0x00,
+        0x0E, 0x00, 0xFA, 0x00,
+        0x0C, 0x00, 0xFC, 0x00,
+        0x12, 0x00, 0xF6, 0x00
+    ])
+
     with open(sdir_path, "rb") as sdir:
         sdirhead = bytearray(16)
         sdir.readinto(sdirhead)
 
-        if sdirhead[0:4][::-1] != b"SDIR":
-            return sounds
+        is_wii_format = sdirhead[0:4][::-1] == b"SDIR"
 
-        num_samples = struct.unpack(">I", sdirhead[0x0C:0x10])[0]
+        if is_wii_format:
+            num_entries = struct.unpack(">I", sdirhead[0x0C:0x10])[0]
+            entry_size = 64
+        else:
+            sdir.seek(0)
+            sdir_data = sdir.read()
+            num_entries = len(sdir_data) // 32
+            entry_size = 32
+            sdir.seek(0)
 
         with open(samp_path, "rb") as samp:
-            for i in range(num_samples):
-                sampinfo = bytearray(64)
-                sdir.readinto(sampinfo)
+            for i in range(num_entries):
+                if is_wii_format:
+                    sampinfo = bytearray(64)
+                    sdir.readinto(sampinfo)
 
-                sample_offset = struct.unpack(">I", sampinfo[0x00:0x04])[0]
-                num_nibbles = struct.unpack(">I", sampinfo[0x04:0x08])[0]
-                sample_rate = struct.unpack(">H", sampinfo[0x0E:0x10])[0]
-                coefficients = sampinfo[0x10:0x30]
-                ps = sampinfo[0x33]
+                    sample_offset = struct.unpack(">I", sampinfo[0x00:0x04])[0]
+                    num_nibbles = struct.unpack(">I", sampinfo[0x04:0x08])[0]
+                    sample_rate = struct.unpack(">H", sampinfo[0x0E:0x10])[0]
+                    coefficients = sampinfo[0x10:0x30]
+                    ps = sampinfo[0x33]
 
-                if num_nibbles > 0:
-                    num_samples_calc = nibbles_to_samples(num_nibbles)
+                    if num_nibbles > 0:
+                        num_samples_calc = nibbles_to_samples(num_nibbles)
 
-                    samp.seek((sample_offset - 2) // 2)
-                    adpcm_data = samp.read(num_nibbles // 2)
+                        samp.seek((sample_offset - 2) // 2)
+                        adpcm_data = samp.read(num_nibbles // 2)
 
-                    dsp_data = create_dsp_file(num_samples_calc, num_nibbles, sample_rate,
-                                                    coefficients, ps, adpcm_data)
+                        dsp_data = create_dsp_file(num_samples_calc, num_nibbles, sample_rate,
+                                                        coefficients, ps, adpcm_data)
 
-                    pcm_samples = decode_dsp_adpcm(adpcm_data, coefficients, ps, num_samples_calc)
+                        pcm_samples = decode_dsp_adpcm(adpcm_data, coefficients, ps, num_samples_calc)
 
-                    sound_info = {
-                        'index': i,
-                        'sample_rate': sample_rate,
-                        'num_samples': num_samples_calc,
-                        'duration': num_samples_calc / sample_rate if sample_rate > 0 else 0,
-                        'dsp_data': dsp_data,
-                        'pcm_samples': pcm_samples,
-                        'coefficients': coefficients,
-                        'ps': ps,
-                        'adpcm_data': adpcm_data
-                    }
-                    sounds.append(sound_info)
+                        sound_info = {
+                            'index': i,
+                            'sample_rate': sample_rate,
+                            'num_samples': num_samples_calc,
+                            'duration': num_samples_calc / sample_rate if sample_rate > 0 else 0,
+                            'dsp_data': dsp_data,
+                            'pcm_samples': pcm_samples,
+                            'coefficients': coefficients,
+                            'ps': ps,
+                            'adpcm_data': adpcm_data
+                        }
+                        sounds.append(sound_info)
+                else:
+                    tbl1_offset = i * 32
+
+                    if tbl1_offset + 32 > len(sdir_data):
+                        break
+
+                    record1 = sdir_data[tbl1_offset:tbl1_offset + 32]
+
+                    if record1[0:4] == b'\xFF\xFF\xFF\xFF':
+                        break
+
+                    sound_id = struct.unpack(">H", record1[0x00:0x02])[0]
+                    sample_offset = struct.unpack(">I", record1[0x04:0x08])[0]
+                    sample_rate = struct.unpack(">H", record1[0x0E:0x10])[0]
+                    num_samples_calc = struct.unpack(">I", record1[0x10:0x14])[0]
+                    tbl2_offset = struct.unpack(">I", record1[0x1C:0x20])[0]
+
+                    if num_samples_calc > 0 and sample_offset > 0 and tbl2_offset + 0x28 <= len(sdir_data):
+                        record2 = sdir_data[tbl2_offset:tbl2_offset + 0x28]
+
+                        ps = record2[0x02]
+                        coefficients = record2[0x08:0x28]
+
+                        frames = (num_samples_calc + 13) // 14
+                        num_nibbles = frames * 16
+                        data_bytes = num_nibbles // 2
+
+                        samp.seek(sample_offset)
+                        adpcm_data = samp.read(data_bytes)
+
+                        dsp_data = create_dsp_file(num_samples_calc, num_nibbles, sample_rate,
+                                                        coefficients, ps, adpcm_data)
+
+                        pcm_samples = decode_dsp_adpcm(adpcm_data, coefficients, ps, num_samples_calc)
+
+                        sound_info = {
+                            'index': i,
+                            'sample_rate': sample_rate,
+                            'num_samples': num_samples_calc,
+                            'duration': num_samples_calc / sample_rate if sample_rate > 0 else 0,
+                            'dsp_data': dsp_data,
+                            'pcm_samples': pcm_samples,
+                            'coefficients': coefficients,
+                            'ps': ps,
+                            'adpcm_data': adpcm_data
+                        }
+                        sounds.append(sound_info)
 
     return sounds
 

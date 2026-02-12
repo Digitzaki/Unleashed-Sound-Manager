@@ -1,5 +1,61 @@
 import struct
 
+def calculate_coefficients(samples):
+    """Calculate optimal ADPCM coefficients using autocorrelation."""
+
+    # Calculate autocorrelation for lags 0, 1, 2
+    r = [0.0, 0.0, 0.0]
+
+    for i in range(len(samples)):
+        r[0] += samples[i] * samples[i]
+        if i > 0:
+            r[1] += samples[i] * samples[i-1]
+        if i > 1:
+            r[2] += samples[i] * samples[i-2]
+
+    # Avoid division by zero
+    if r[0] == 0:
+        r[0] = 1.0
+
+    # Normalize
+    r[1] /= r[0]
+    r[2] /= r[0]
+    r[0] = 1.0
+
+    # Solve Yule-Walker equations for order 2
+    # [ r0  r1 ] [ a1 ]   [ r1 ]
+    # [ r1  r0 ] [ a2 ] = [ r2 ]
+
+    det = r[0] * r[0] - r[1] * r[1]
+    if abs(det) < 1e-10:
+        det = 1e-10
+
+    a1 = (r[0] * r[1] - r[1] * r[2]) / det
+    a2 = (r[0] * r[2] - r[1] * r[1]) / det
+
+    # Clamp to valid range for 16-bit signed coefficients
+    a1 = max(-2.0, min(2.0, a1))
+    a2 = max(-2.0, min(2.0, a2))
+
+    # Convert to fixed-point (Q11 format: multiply by 2048)
+    coef1_int = int(a1 * 2048)
+    coef2_int = int(a2 * 2048)
+
+    # Clamp to 16-bit signed range
+    coef1_int = max(-32768, min(32767, coef1_int))
+    coef2_int = max(-32768, min(32767, coef2_int))
+
+    # Create coefficient table (8 pairs, but we'll use the first pair for all)
+    coefs = bytearray(32)
+    struct.pack_into(">h", coefs, 0, coef1_int)
+    struct.pack_into(">h", coefs, 2, coef2_int)
+
+    # Fill remaining 7 pairs with copies (simple approach)
+    for i in range(1, 8):
+        coefs[i*4:i*4+4] = coefs[0:4]
+
+    return bytes(coefs)
+
 def nibbles_to_samples(nibbles):
     whole_frames = nibbles // 16
     remainder = nibbles % 16
