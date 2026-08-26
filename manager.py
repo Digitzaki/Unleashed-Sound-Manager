@@ -26,8 +26,9 @@ from file_operations import (
     bulk_resize_ps2_sounds_in_uber_samp,
     get_pcm_samples, get_ps2_sdir_entries_from_uber,
     write_ps2_rebuild_debug_dump, build_ps2_replacement_from_file,
-    get_ps2_uber_sound_name_map, get_ps2_uber_random_config_map,
-    append_ps2_uber_cue,
+    get_ps2_uber_sound_name_map, get_wii_uber_sound_name_map,
+    get_ps2_uber_random_config_map,
+    append_ps2_uber_cue, append_wii_uber_cue,
     set_wii_loop_flags_for_sounds, set_ps2_loop_flags_for_sounds, set_ps2_uber_sound_name,
     set_ps2_uber_random_cue, set_ps2_uber_ambient_full_cue
 )
@@ -35,7 +36,7 @@ from file_operations import (
 class AudioExtractor:
     def __init__(self, root):
         self.root = root
-        self.root.title("GZ Sound Manager [v2.9]")
+        self.root.title("GZ Sound Manager [v3.0]")
         self.root.geometry("900x700")
 
         self.uber_file = None
@@ -540,7 +541,10 @@ class AudioExtractor:
 
         try:
             entry_count = max((sound_info['index'] for sound_info in self.loaded_sounds), default=-1) + 1
-            name_map = get_ps2_uber_sound_name_map(self.uber_file, entry_count)
+            if any(sound_info.get('format') == 'wii_dsp' for sound_info in self.loaded_sounds):
+                name_map = get_wii_uber_sound_name_map(self.uber_file, entry_count)
+            else:
+                name_map = get_ps2_uber_sound_name_map(self.uber_file, entry_count)
         except Exception:
             name_map = {}
 
@@ -1948,15 +1952,19 @@ class AudioExtractor:
                         actual_index = append_gc_sound_to_sdir_samp(
                             self.uber_file, self.samp_file, new_dsp_data
                         )
+                        cue_index = None
                     else:
                         actual_index = append_wii_sound_to_uber_samp(
                             self.uber_file, self.samp_file, new_dsp_data
+                        )
+                        cue_index = append_wii_uber_cue(
+                            self.uber_file, actual_index, append_info.get('cue_name')
                         )
                     appended_bytes = len(new_dsp_data[0x60:])
 
                 self.status_text.insert(tk.END,
                     f"\n  Added SDIR entry {actual_index:02d}")
-                if bank_format == 'ps2_adpcm':
+                if bank_format in ('ps2_adpcm', 'wii_dsp') and cue_index is not None:
                     self.status_text.insert(tk.END,
                         f"\n  Added UBER cue {cue_index:02d}: {append_info.get('cue_name', '')}")
                 self.status_text.insert(tk.END,

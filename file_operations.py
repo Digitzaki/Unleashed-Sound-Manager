@@ -357,6 +357,60 @@ def find_ps2_uber_name_table(uber_data, offsets):
 
     return best_names
 
+def find_uber_name_table(uber_data, offsets, endian):
+    best_names = []
+
+    for chunk_index in range(len(offsets) - 1):
+        chunk = uber_data[offsets[chunk_index]:offsets[chunk_index + 1]]
+        if len(chunk) < 8:
+            continue
+
+        count = struct.unpack(endian + "I", chunk[0:4])[0]
+        if count <= 0 or count > 10000 or 4 + count * 4 > len(chunk):
+            continue
+
+        names = []
+        valid_count = 0
+        for index in range(count):
+            ptr_offset = 4 + index * 4
+            string_offset = struct.unpack(endian + "I", chunk[ptr_offset:ptr_offset + 4])[0]
+            name = read_uber_c_string(uber_data, string_offset)
+            names.append(name)
+            if name:
+                valid_count += 1
+
+        if valid_count > len(best_names) // 2 and valid_count > 10:
+            best_names = names
+
+    return best_names
+
+def find_wii_uber_name_table(uber_data, offsets):
+    best_names = []
+
+    for chunk_index in range(len(offsets) - 1):
+        chunk = uber_data[offsets[chunk_index]:offsets[chunk_index + 1]]
+        if len(chunk) < 8:
+            continue
+
+        count = struct.unpack(">H", chunk[0:2])[0]
+        if count <= 0 or count > 10000 or 4 + count * 4 > len(chunk):
+            continue
+
+        names = []
+        valid_count = 0
+        for index in range(count):
+            ptr_offset = 4 + index * 4
+            string_offset = struct.unpack(">I", chunk[ptr_offset:ptr_offset + 4])[0]
+            name = read_uber_c_string(uber_data, string_offset)
+            names.append(name)
+            if name:
+                valid_count += 1
+
+        if valid_count > len(best_names) // 2 and valid_count > 10:
+            best_names = names
+
+    return best_names
+
 def extract_ps2_pool_sound_refs(record, entry_count):
     refs = set()
 
@@ -373,6 +427,95 @@ def extract_ps2_pool_sound_refs(record, entry_count):
             refs.add(sample_index)
 
     return refs
+
+def extract_uber_pool_sound_refs(record, entry_count):
+    refs = set()
+
+    for offset in range(0, max(0, len(record) - 3), 8):
+        command = record[offset]
+        sample_index = None
+
+        if command == 0x10:
+            sample_index = (record[offset + 1] << 8) | record[offset + 2]
+        elif command in (0x06, 0x13):
+            sample_index = (record[offset + 2] << 8) | record[offset + 3]
+
+        if sample_index is not None and 0 <= sample_index < entry_count:
+            refs.add(sample_index)
+
+    return refs
+
+def get_wii_uber_sound_name_map(uber_path, entry_count):
+    with open(uber_path, "rb") as uber:
+        uber_data = uber.read()
+
+    if get_uber_endian(uber_data) != ">":
+        return {}
+
+    offsets = get_uber_chunk_offsets(uber_data)
+    cue_names = find_wii_uber_name_table(uber_data, offsets)
+    if not cue_names:
+        return {}
+
+    _pool_index, pool_data = find_uber_chunk(uber_path, "pool")
+    if not pool_data or len(pool_data) < 0x10 or pool_data[0:4][::-1] != b"POOL":
+        return {}
+
+    pool_count = struct.unpack(">I", pool_data[0x08:0x0C])[0]
+    cue_count = min(len(cue_names), pool_count)
+    if cue_count <= 0 or 0x10 + cue_count * 4 > len(pool_data):
+        return {}
+
+    record_offsets = [
+        struct.unpack(">I", pool_data[0x10 + index * 4:0x14 + index * 4])[0]
+        for index in range(cue_count)
+    ]
+    sorted_record_offsets = sorted({
+        offset for offset in record_offsets
+        if 0 <= offset < len(pool_data)
+    })
+
+    sound_name_matches = {}
+    for cue_index, record_offset in enumerate(record_offsets):
+        if not (0 <= record_offset < len(pool_data)):
+            continue
+
+        next_offsets = [
+            offset for offset in sorted_record_offsets
+            if offset > record_offset
+        ]
+        record_end = next_offsets[0] if next_offsets else len(pool_data)
+        record = pool_data[record_offset:record_end]
+
+        cue_name = cue_names[cue_index]
+        if not cue_name:
+            continue
+
+        refs = extract_uber_pool_sound_refs(record, entry_count)
+        if not refs:
+            continue
+
+        is_direct_cue = len(refs) == 1
+        for sample_index in refs:
+            matches = sound_name_matches.setdefault(sample_index, [])
+            if not any(match['name'] == cue_name for match in matches):
+                matches.append({
+                    'name': cue_name,
+                    'cue_index': cue_index,
+                    'is_direct_cue': is_direct_cue,
+                    'ref_count': len(refs),
+                })
+
+    sound_names = {}
+    for sample_index, matches in sound_name_matches.items():
+        matches.sort(key=lambda match: (
+            0 if match['is_direct_cue'] else 1,
+            match['ref_count'],
+            match['cue_index'],
+        ))
+        sound_names[sample_index] = [match['name'] for match in matches]
+
+    return sound_names
 
 def get_ps2_uber_sound_name_map(uber_path, entry_count):
     with open(uber_path, "rb") as uber:
@@ -1152,6 +1295,148 @@ def append_ps2_uber_cue(uber_path, sound_index, cue_name):
     for pointer in shifted_pointers:
         new_names += struct.pack("<I", pointer)
     new_names += struct.pack("<I", new_string_offset)
+    new_names += name_data[4 + (name_count * 4):]
+    new_names += cue_name.encode("ascii", errors="replace") + b"\x00"
+    replace_uber_chunk(uber_path, name_index, bytes(new_names), adjust_pointers=False)
+
+    return new_cue_index
+
+def find_wii_uber_name_table_chunk(uber_path):
+    with open(uber_path, "rb") as uber:
+        uber_data = uber.read()
+
+    offsets = get_uber_chunk_offsets(uber_data)
+    best = (None, None, None, 0)
+
+    for chunk_index in range(len(offsets) - 1):
+        chunk_start = offsets[chunk_index]
+        chunk = uber_data[chunk_start:offsets[chunk_index + 1]]
+        if len(chunk) < 8:
+            continue
+
+        count = struct.unpack(">H", chunk[0:2])[0]
+        if count <= 0 or count > 10000 or 4 + count * 4 > len(chunk):
+            continue
+
+        valid_count = 0
+        for index in range(count):
+            ptr_offset = 4 + index * 4
+            string_offset = struct.unpack(">I", chunk[ptr_offset:ptr_offset + 4])[0]
+            if read_uber_c_string(uber_data, string_offset):
+                valid_count += 1
+
+        if valid_count > best[3] and valid_count > 10:
+            best = (chunk_index, chunk, chunk_start, valid_count)
+
+    return best[0], best[1], best[2]
+
+def get_wii_pool_record_offsets(pool_data, cue_count):
+    return [
+        struct.unpack(">I", pool_data[0x10 + index * 4:0x14 + index * 4])[0]
+        for index in range(cue_count)
+    ]
+
+def create_wii_pool_cue_record(sound_index, template_record=None):
+    if template_record and len(template_record) >= 32:
+        record, changed = replace_ps2_pool_sound_refs(template_record, sound_index)
+        if changed:
+            return record
+
+    record = bytearray.fromhex(
+        "0d 80 00 00 00 00 00 00 "
+        "10 00 00 00 00 00 00 00 "
+        "07 00 00 01 00 00 ff ff "
+        "00 00 00 00 00 00 00 00"
+    )
+    record[0x09] = (sound_index >> 8) & 0xFF
+    record[0x0A] = sound_index & 0xFF
+    return bytes(record)
+
+def append_wii_uber_cue(uber_path, sound_index, cue_name):
+    cue_name = (cue_name or f"sound_{sound_index}").strip()
+    if not cue_name:
+        cue_name = f"sound_{sound_index}"
+
+    with open(uber_path, "rb") as uber:
+        original_uber_data = uber.read()
+
+    if get_uber_endian(original_uber_data) != ">":
+        raise ValueError("Wii UBER cue append requires a big-endian UBER")
+
+    proj_index, proj_data = find_uber_chunk(uber_path, "proj")
+    pool_index, pool_data = find_uber_chunk(uber_path, "pool")
+    name_index, name_data, name_chunk_start = find_wii_uber_name_table_chunk(uber_path)
+    if proj_data is None or pool_data is None or name_data is None:
+        raise ValueError("Wii UBER cue append requires PROJ, POOL, and name chunks")
+    if proj_data[0:4][::-1] != b"PROJ" or pool_data[0:4][::-1] != b"POOL":
+        raise ValueError("Wii UBER cue append only supports big-endian PROJ/POOL chunks")
+
+    proj_count = struct.unpack(">I", proj_data[0x08:0x0C])[0]
+    pool_count = struct.unpack(">I", pool_data[0x08:0x0C])[0]
+    name_count = struct.unpack(">H", name_data[0:2])[0]
+    if proj_count != pool_count:
+        raise ValueError("PROJ and POOL cue counts do not match")
+    if name_count != pool_count:
+        raise ValueError("Name table and POOL cue counts do not match before cue append")
+    if len(proj_data) != 0x10 + (proj_count * 12):
+        raise ValueError("Unsupported Wii PROJ layout")
+    if 0x10 + (pool_count * 4) > len(pool_data):
+        raise ValueError("Unsupported Wii POOL layout")
+
+    new_cue_index = proj_count
+    old_name_pointers = [
+        struct.unpack(">I", name_data[4 + index * 4:8 + index * 4])[0]
+        for index in range(name_count)
+    ]
+
+    new_proj = bytearray(proj_data)
+    struct.pack_into(">I", new_proj, 0x08, proj_count + 1)
+    proj_record = bytearray(proj_data[0x10 + ((proj_count - 1) * 12):0x10 + (proj_count * 12)])
+    if len(proj_record) != 12:
+        proj_record = bytearray.fromhex("3f 80 00 00 00 00 00 08 00 00 ff ff")
+    struct.pack_into(">H", proj_record, 0x08, new_cue_index & 0xFFFF)
+    struct.pack_into(">H", proj_record, 0x0A, 0xFFFF)
+    new_proj += proj_record
+    proj_delta = len(new_proj) - len(proj_data)
+    replace_uber_chunk(uber_path, proj_index, bytes(new_proj), adjust_pointers=False)
+
+    pool_index, pool_data = find_uber_chunk(uber_path, "pool")
+    pool_count = struct.unpack(">I", pool_data[0x08:0x0C])[0]
+    pointer_start = 0x10
+    pointer_end = pointer_start + (pool_count * 4)
+    record_offsets = get_wii_pool_record_offsets(pool_data, pool_count)
+    shifted_offsets = [offset + 4 for offset in record_offsets]
+    template_spans = get_ps2_pool_record_spans(pool_data, record_offsets)
+    template_offset = record_offsets[-1] if record_offsets else pointer_end
+    template_end = next((end for start, end in template_spans if start == template_offset), template_offset + 32)
+    template_record = pool_data[template_offset:template_end]
+    new_record_offset = len(pool_data) + 4
+
+    new_pool = bytearray()
+    new_pool += pool_data[:0x08]
+    new_pool += struct.pack(">I", pool_count + 1)
+    new_pool += pool_data[0x0C:pointer_start]
+    for offset in shifted_offsets:
+        new_pool += struct.pack(">I", offset)
+    new_pool += struct.pack(">I", new_record_offset)
+    new_pool += pool_data[pointer_end:]
+    new_pool += create_wii_pool_cue_record(sound_index, template_record)
+    pool_delta = len(new_pool) - len(pool_data)
+    replace_uber_chunk(uber_path, pool_index, bytes(new_pool), adjust_pointers=False)
+
+    earlier_chunk_delta = proj_delta + pool_delta
+    shifted_pointers = [
+        pointer + earlier_chunk_delta + 4
+        for pointer in old_name_pointers
+    ]
+    new_string_offset = name_chunk_start + earlier_chunk_delta + len(name_data) + 4
+
+    new_names = bytearray()
+    new_names += struct.pack(">H", name_count + 1)
+    new_names += name_data[0x02:0x04]
+    for pointer in shifted_pointers:
+        new_names += struct.pack(">I", pointer)
+    new_names += struct.pack(">I", new_string_offset)
     new_names += name_data[4 + (name_count * 4):]
     new_names += cue_name.encode("ascii", errors="replace") + b"\x00"
     replace_uber_chunk(uber_path, name_index, bytes(new_names), adjust_pointers=False)
